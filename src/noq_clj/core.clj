@@ -27,11 +27,9 @@
      (partition 2 (interleave (:args pattern) (:args expr))))))
 
 (defn apply-rule-partial [bindings expr]
-  (cond
-    (= (:type expr) :symbol)
-    (get bindings (:name expr))
-    (= (:type expr) :functor)
-    (apply fun (cons 
+  (case (:type expr)
+    :symbol (get bindings (:name expr))
+    :functor (apply fun (cons 
                  (:name expr) 
                  (map #(apply-rule-partial bindings %) (:args expr))))))
 
@@ -42,15 +40,43 @@
       (apply-rule-partial bindings (:body rule)))))
 
 (defn expr->str [expr]
-  (cond
-    (= (:type expr) :symbol)
-    (:name expr)
-    (= (:type expr) :functor)
-    (str (:name expr) 
-         "(" (join ", " (map expr->str (:args expr))) ")")))
+  (case (:type expr)
+    :symbol (:name expr)
+    :functor (str (:name expr) 
+               "(" (join ", " (map expr->str (:args expr))) ")")))
 
 (defn rule->str [rule]
   (str (expr->str (:pattern rule)) " = " (expr->str (:body rule))))
+
+(defn read-ident [code pos symbols]
+  (loop [ident ""
+         pos pos]
+    (let [sym (nth code pos nil)]
+      (if
+        (or
+          (contains? symbols sym)
+          (= \space sym)
+          (nil? sym))
+        (list ident pos)
+        (recur (str ident sym) (inc pos))))))
+
+(defn str->tokens [code]
+  (let [symbols {\( :open-paren \) :close-paren \, :comma}]
+    (loop [pos 0
+           tokens []]
+      (cond
+        (= \space (nth code pos nil))
+          (recur (inc pos) tokens)
+        (contains? symbols (nth code pos nil))
+          (recur 
+            (inc pos) 
+            (conj tokens {:type (get symbols (nth code pos nil))}))
+        (nil? (nth code pos nil))
+          tokens
+        :else
+          (let [[ident pos] (read-ident code pos symbols)]
+            (recur pos (conj tokens {:type :ident :name ident})))))))    
+
 
 (comment
   (def rule-swap

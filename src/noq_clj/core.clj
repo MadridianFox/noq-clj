@@ -1,5 +1,6 @@
-(ns some-clj.core
-  (:use [clojure.string :as string]))
+(ns noq-clj.core
+  (:use [clojure.string :refer [join]]
+        [clojure.test :refer [deftest is testing]]))
 
 (defn sym [name]
   {:type :symbol :name name})
@@ -25,16 +26,28 @@
      res 
      (partition 2 (interleave (:args pattern) (:args expr))))))
 
-;(defn apply-rule [rule expr]
-;  (let [bindings (match (:pattern rule) expr {})]
+(defn apply-rule-partial [bindings expr]
+  (cond
+    (= (:type expr) :symbol)
+    (get bindings (:name expr))
+    (= (:type expr) :functor)
+    (apply fun (cons 
+                 (:name expr) 
+                 (map #(apply-rule-partial bindings %) (:args expr))))))
 
+(defn apply-rule [rule expr]
+  (let [bindings (match (:pattern rule) expr {})]
+    (if (nil? bindings)
+      expr
+      (apply-rule-partial bindings (:body rule)))))
 
 (defn expr->str [expr]
   (cond
     (= (:type expr) :symbol)
     (:name expr)
     (= (:type expr) :functor)
-    (str (:name expr) "(" (string/join ", " (map expr->str (:args expr))) ")")))
+    (str (:name expr) 
+         "(" (join ", " (map expr->str (:args expr))) ")")))
 
 (defn rule->str [rule]
   (str (expr->str (:pattern rule)) " = " (expr->str (:body rule))))
@@ -45,7 +58,11 @@
       (fun "swap" (fun "pair" (sym "a") (sym "b")))
       (fun "pair" (sym "b") (sym "a"))))
   (def expr
-    (fun "pair"
-      (fun "f" (sym "g"))
-      (fun "k" (sym "z"))))
+    (fun "swap"
+      (fun "pair"
+        (fun "f" (sym "g"))
+        (fun "k" (sym "z")))))
+  (def expr2
+    (fun "f"
+         (sym "a")))
 )

@@ -77,6 +77,40 @@
           (let [[ident pos] (read-ident code pos symbols)]
             (recur pos (conj tokens {:type :ident :name ident})))))))    
 
+(declare read-expr)
+(defn read-args [tokens pos]
+  (loop [pos pos
+         args []]
+    (let [token (nth tokens pos nil)]
+      (cond
+        (= (:type token) :close-paren)
+        (list args (inc pos))
+        (= (:type token) :comma)
+        (recur (inc pos) args)
+        :else
+        (let [[expr pos] (read-expr tokens pos)]
+          (recur pos (conj args expr)))))))
+
+(defn read-expr [tokens pos]
+  (let [first-token (nth tokens pos nil)
+        pos (inc pos)
+        second-token (nth tokens pos nil)]
+    (cond
+      (nil? first-token)
+      (list nil pos)
+      (nil? second-token)
+      (if (= (:type first-token) :ident)
+        (list (sym (:name first-token)) pos)
+        (list nil pos))
+      :else
+      (if (and
+            (= (:type first-token) :ident)
+            (= (:type second-token) :open-paren))
+        (let [[args pos] (read-args tokens (inc pos))]
+          (list (apply fun (cons (:name first-token) args)) pos))
+        (if (= (:type first-token) :ident)
+          (list (sym (:name first-token)) pos)
+          (list nil pos))))))
 
 (comment
   (def rule-swap
@@ -91,4 +125,5 @@
   (def expr2
     (fun "f"
          (sym "a")))
+  (read-expr (str->tokens "f(a, b, g(x))") 0)
 )
